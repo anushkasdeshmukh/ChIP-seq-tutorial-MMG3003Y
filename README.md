@@ -11,4 +11,4 @@ The final output includes high-confidence CTCF binding peaks identified using MA
 
 ## ✅ SciNet Access
 
-- Must have access to the [SciNet Teach Cluster](https://docs.scinet.utoronto.ca/index.php/Teach_Cluster)
+- Must have access to the [SciNet Teach Cluster](https://docs.scinet.utoronto.ca/index.php/Main_Page)
