@@ -1,0 +1,131 @@
+# Step-by-Step ChIP-seq Analysis Workflow with Full Paths
+# Here's your complete ChIP-seq analysis broken down into individual commands with full paths and explanations for each step:
+
+# 1. Get the Data
+
+# Create directory for your data
+mkdir /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data
+
+# Copy the FASTQ files to your directory
+cp /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1071/ChIPseq_data/*.fastq /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data/
+
+# Check the files were copied
+ls /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data/
+
+# Note: This creates your data folder and copies the 4 FASTQ files into it.
+
+# 2. Quality Assessment with FastQC
+
+# Request compute resources (30 minutes, 8 cores)
+salloc -N1 -t0:30:00 --ntasks=8
+
+# Load FastQC module
+module load fastqc
+
+# Run FastQC on all FASTQ files
+fastqc /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data/*.fastq -o /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data/
+
+# Exit the compute node
+exit
+
+# Note: Generates quality reports for each FASTQ file in HTML format.
+
+# 3. Mapping Preparation
+
+# Create directory for reference genome
+mkdir /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_mouse_ref
+
+# Download mouse chromosome 19
+wget http://ftp.ensembl.org/pub/release-96/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.chromosome.19.fa.gz -P /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_mouse_ref/
+
+# 4. Mapping with Bowtie2
+
+# Request resources (1 hour, 8 cores)
+salloc -N1 -t1:00:00 --ntasks=8
+
+# Load required modules
+module load bowtie2 samtools
+
+# Build Bowtie2 index
+bowtie2-build -f /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_mouse_ref/Mus_musculus.GRCm38.dna.chromosome.19.fa.gz /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_mouse_ref/index
+
+# Map each sample individually
+bowtie2 -x /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_mouse_ref/index -U /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data/G1E_CTCF_chr19.fastq -S /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/G1E_CTCF_chr19_unsorted.sam
+
+bowtie2 -x /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_mouse_ref/index -U /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data/G1E_ER4_CTCF_chr19.fastq -S /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/G1E_ER4_CTCF_chr19_unsorted.sam
+
+bowtie2 -x /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_mouse_ref/index -U /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data/G1E_input_chr19.fastq -S /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/G1E_input_chr19_unsorted.sam
+
+bowtie2 -x /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_mouse_ref/index -U /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_data/G1E_ER4_input_chr19.fastq -S /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/G1E_ER4_input_chr19_unsorted.sam
+
+# Note: Each command maps one sample to the reference genome, creating SAM files.
+
+# 5. Post-Mapping Processing
+
+# Create directory for sorted BAM files
+mkdir /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam
+
+# Sort and convert each SAM to BAM
+samtools sort -o /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/G1E_CTCF_chr19_sorted.bam /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/G1E_CTCF_chr19_unsorted.sam
+
+samtools sort -o /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/G1E_ER4_CTCF_chr19_sorted.bam /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/G1E_ER4_CTCF_chr19_unsorted.sam
+
+samtools sort -o /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/G1E_input_chr19_sorted.bam /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/G1E_input_chr19_unsorted.sam
+
+samtools sort -o /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/G1E_ER4_input_chr19_sorted.bam /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/G1E_ER4_input_chr19_unsorted.sam
+
+# Create directory for duplicate removal
+mkdir /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup
+
+# Remove duplicates from each BAM file
+samtools rmdup -s /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/G1E_CTCF_chr19_sorted.bam /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_CTCF_chr19_sorted_rmdup.bam
+
+samtools rmdup -s /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/G1E_ER4_CTCF_chr19_sorted.bam /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_ER4_CTCF_chr19_sorted_rmdup.bam
+
+samtools rmdup -s /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/G1E_input_chr19_sorted.bam /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_input_chr19_sorted_rmdup.bam
+
+samtools rmdup -s /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/G1E_ER4_input_chr19_sorted.bam /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_ER4_input_chr19_sorted_rmdup.bam
+
+# Filter multi-mapped reads (MAPQ ≥ 42)
+samtools view -b -h -q 42 /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_CTCF_chr19_sorted_rmdup.bam > /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_CTCF_chr19_sorted_filtered.bam
+
+samtools view -b -h -q 42 /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_ER4_CTCF_chr19_sorted_rmdup.bam > /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_ER4_CTCF_chr19_sorted_filtered.bam
+
+samtools view -b -h -q 42 /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_input_chr19_sorted_rmdup.bam > /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_input_chr19_sorted_filtered.bam
+
+samtools view -b -h -q 42 /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_ER4_input_chr19_sorted_rmdup.bam > /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_ER4_input_chr19_sorted_filtered.bam
+
+# Note: This section: (1) sorts SAM → BAM, (2) removes duplicates, (3) keeps only high-quality unique alignments.
+
+# 6. Peak Calling with MACS3
+
+# Create directory for MACS3 results
+mkdir /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/macs
+
+# Set up Python environment
+module load python/3.10 scipy-stack
+virtualenv --no-download /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/ENV
+source /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/ENV/bin/activate
+
+# Install MACS3
+pip install --no-index --upgrade pip
+pip install numpy hmmlearn scikit-learn scipy Cython cykhash macs3 --no-index
+
+# Call peaks for G1E_CTCF vs. G1E_input
+macs3 callpeak \
+    -t /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_CTCF_chr19_sorted_filtered.bam \
+    -c /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_input_chr19_sorted_filtered.bam \
+    -f BAM -g 1.3e+8 -n G1E_CTCF \
+    --outdir /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/macs
+
+# Call peaks for G1E_ER4_CTCF vs. G1E_ER4_input
+macs3 callpeak \
+    -t /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_ER4_CTCF_chr19_sorted_filtered.bam \
+    -c /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/bowtie2/sorted_bam/rmdup/G1E_ER4_input_chr19_sorted_filtered.bam \
+    -f BAM -g 1.3e+8 -n G1E_ER4_CTCF \
+    --outdir /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/macs
+
+# Check number of peaks found
+wc -l /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1076/ChIPseq_results/macs/*.narrowPeak
+
+# Note: Final step identifies protein-DNA binding sites (peaks) for each condition.
