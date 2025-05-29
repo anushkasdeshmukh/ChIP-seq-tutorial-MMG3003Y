@@ -1,7 +1,7 @@
 #ChIP-seq Analysis Workflow
 
 # 1. Setup and Data Preparation
-
+# 1.1 Create Folders for the Analysis
 mkdir -p ChIPseq_data ChIPseq_mouse_ref ChIPseq_results/{bowtie2/{sorted_bam/rmdup},macs}
 
 # Note: We need folders to organize our data, reference genome, and results.
@@ -11,6 +11,7 @@ mkdir -p ChIPseq_data ChIPseq_mouse_ref ChIPseq_results/{bowtie2/{sorted_bam/rmd
 - bowtie2/ → Alignment results
 - macs/ → Peak calling results
 
+# 1.2 Copy Raw Data
 cd ChIPseq_data 
 cp /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1071/ChIPseq_data/*.fastq .
 
