@@ -1,0 +1,119 @@
+#ChIP-seq Analysis Workflow
+
+# 1. Setup and Data Preparation
+
+mkdir -p ChIPseq_data ChIPseq_mouse_ref ChIPseq_results/{bowtie2/{sorted_bam/rmdup},macs}
+
+# Note: We need folders to organize our data, reference genome, and results.
+- ChIPseq_data → Stores raw FASTQ files
+- ChIPseq_mouse_ref → Stores the mouse genome reference
+- ChIPseq_results → Stores all output files
+- bowtie2/ → Alignment results
+- macs/ → Peak calling results
+
+cd ChIPseq_data 
+cp /home/l/lcl_uotmmg3003/lcl_uotmmg3003s1071/ChIPseq_data/*.fastq .
+
+(# *.fastq → Matches all files ending with .fastq)
+
+# 2. Quality Assessment
+# Before aligning reads, we check their quality using FastQC.
+# Request computing resources (30 min, 8 CPU cores)
+salloc -N1 -t0:30:00 --ntasks=8
+# Load FastQC module and run on all FASTQ files
+module load fastqc
+fastqc *.fastq
+exit
+# Exit the compute node when done
+
+# Note: FastQC generates HTML reports showing read quality. Check for issues like low-quality bases or adapter contamination.
+
+# 3. Mapping Preparation
+# 3.1 Download the Mouse Reference Genome
+# We use chromosome 19 of the mouse genome for this tutorial.
+
+cd ../ChIPseq_mouse_ref
+wget http://ftp.ensembl.org/pub/release-96/fasta/mus_musculus/dna/Mus_musculus.GRCm38.dna.chromosome.19.fa.gz
+
+# wget downloads the reference genome (FASTA format).
+
+# 3.2 Mapping with Bowtie2 [Mapping Reads to the Genome (Bowtie2)]
+# Bowtie2 needs an index of the genome for fast alignment.
+salloc -N1 -t1:00:00 --ntasks=8
+module load bowtie2 samtools
+
+# Build index
+bowtie2-build -f Mus_musculus.GRCm38.dna.chromosome.19.fa.gz index
+
+# Note: This creates files like index.1.bt2, index.2.bt2, etc.
+
+# 3.3 Map samples [Align Reads to the Genome]
+# Now, we map each FASTQ file to the reference genome.
+# Loop through each sample and align
+for sample in G1E_CTCF G1E_ER4_CTCF G1E_input G1E_ER4_input; do
+    bowtie2 -x index -U ../ChIPseq_data/${sample}_chr19.fastq -S ../ChIPseq_results/bowtie2/${sample}_chr19_unsorted.sam
+done
+
+# Note: -x index → Uses the Bowtie2 index we built, -U → Input FASTQ file, -S → Output SAM file (alignment results)
+
+# 4. Post-mapping Processing (SAMtools)
+# 4.1 Sort and Convert SAM to BAM
+# SAM files are large, so we convert them to BAM (binary format) and sort them.
+cd ../ChIPseq_results/bowtie2
+# Go to bowtie2 results
+
+# Sort and convert to BAM
+for sample in G1E_CTCF G1E_ER4_CTCF G1E_input G1E_ER4_input; do
+    samtools sort -o sorted_bam/${sample}_chr19_sorted.bam ${sample}_chr19_unsorted.sam
+done
+
+# Note: samtools sort → Sorts alignments by genomic position, BAM files are smaller and faster to process.
+
+# 4.2  Remove Duplicate Reads
+# PCR duplicates can bias results, so we remove them.
+for sample in G1E_CTCF G1E_ER4_CTCF G1E_input G1E_ER4_input; do
+    samtools rmdup -s sorted_bam/${sample}_chr19_sorted.bam sorted_bam/rmdup/${sample}_chr19_sorted_rmdup.bam
+done
+
+# Note: -s → For single-end reads (not paired-end)
+
+# 4.3 Filter Out Low-Quality & Multi-Mapped Reads
+# We keep only uniquely mapped reads (MAPQ ≥ 42).
+for sample in G1E_CTCF G1E_ER4_CTCF G1E_input G1E_ER4_input; do
+    samtools view -b -h -q 42 sorted_bam/rmdup/${sample}_chr19_sorted_rmdup.bam > sorted_bam/rmdup/${sample}_chr19_sorted_filtered.bam
+done
+
+# Note: -q 42 → Only keeps reads with high mapping quality, -b → Output in BAM format, -h → Keep header information
+
+# 5. Peak Calling with MACS3
+# 5.1 Install MACS3 in a Virtual Environment
+# MACS3 is not pre-installed, so we set up a Python virtual environment.
+module load python/3.10 scipy-stack
+virtualenv --no-download ENV
+source ENV/bin/activate
+pip install --no-index --upgrade pip
+pip install numpy hmmlearn scikit-learn scipy Cython cykhash macs3 --no-index
+
+# Note: virtualenv → Isolates Python packages, pip install → Installs MACS3 and dependencies
+
+# 5.2 Call Peaks for Each Condition
+# We compare CTCF ChIP samples against their input controls.
+# Run MACS3
+macs3 callpeak \
+    -t sorted_bam/rmdup/G1E_CTCF_chr19_sorted_filtered.bam \
+    -c sorted_bam/rmdup/G1E_input_chr19_sorted_filtered.bam \
+    -f BAM -g 1.3e+8 -n G1E_CTCF \
+    --outdir macs
+
+macs3 callpeak \
+    -t sorted_bam/rmdup/G1E_ER4_CTCF_chr19_sorted_filtered.bam \
+    -c sorted_bam/rmdup/G1E_ER4_input_chr19_sorted_filtered.bam \
+    -f BAM -g 1.3e+8 -n G1E_ER4_CTCF \
+    --outdir macs
+
+# Note: -t → Treatment (ChIP) sample, -c → Control (input) sample, -f BAM → Input format, -g 1.3e8 → Genome size (mouse chr19), -n → Output name prefix, --outdir → Where to save results
+
+# 5.3 Check Results
+# Count the number of peaks
+wc -l macs/*.narrowPeak
+# This tells us how many peaks were found in each sample.
